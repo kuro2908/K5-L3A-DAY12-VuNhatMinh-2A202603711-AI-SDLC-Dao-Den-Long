@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Đảo Đèn Lồng</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0e1430; font-family: "Segoe UI", Roboto, sans-serif; color: #f5f1e6; }
+  #game { position: fixed; inset: 0; }
+  #hud { position: fixed; top: 12px; left: 12px; right: 12px; display: flex; gap: 10px; flex-wrap: wrap; pointer-events: none; }
+  .pill { background: rgba(14,20,48,.72); border: 1px solid #2a3360; border-radius: 999px; padding: 6px 14px; font-weight: 600; }
+  .pill b { color: #ffb347; }
+  .pill.bad b { color: #b58cff; }
+  #help { position: fixed; bottom: 12px; left: 12px; font-size: 13px; color: #aeb3cc; background: rgba(14,20,48,.6); padding: 6px 12px; border-radius: 8px; }
+  #card { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(8,12,30,.78); text-align: center; }
+  #card[hidden] { display: none; }
+  #card h1 { font-size: 44px; margin: 0 0 8px; color: #ffb347; }
+  #card p { max-width: 520px; color: #aeb3cc; margin: 6px auto; line-height: 1.5; }
+  #card button { margin-top: 18px; padding: 10px 28px; font: 700 16px inherit; border: 0; border-radius: 10px; background: #ffb347; color: #1a1206; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="hud">
+  <div class="pill">❤ Lửa <b id="flames">3</b></div>
+  <div class="pill">✨ Mang <b id="carried">0</b>/<span id="cap">6</span></div>
+  <div class="pill">🏮 Đèn <b id="lit">0</b>/<span id="total">5</span></div>
+  <div class="pill">⏳ <b id="time">300</b>s</div>
+  <div class="pill">Điểm <b id="score">0</b></div>
+  <div class="pill" id="pulsePill">Tỏa sáng <b id="pulse">sẵn sàng</b></div>
+</div>
+<div id="help">WASD/mũi tên: di chuyển · Space: nhảy · E: thắp đèn · Q/F: tỏa sáng · kéo chuột: xoay camera · R: chơi lại</div>
+<div id="card">
+  <div>
+    <h1 id="cardTitle">Đảo Đèn Lồng</h1>
+    <p id="cardText">Mây phải gom đom đóm và mang về thắp lại 5 Đèn Lồng Lớn trước khi trời sáng. Né Bóng Mực, hoặc tỏa sáng để xua chúng đi.</p>
+    <button id="cardBtn">Bắt đầu Đêm 1</button>
+  </div>
+</div>
+<script type="module" src="/src/render/main.ts"></script>
+</body>
+</html>
