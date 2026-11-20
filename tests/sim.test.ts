@@ -178,9 +178,11 @@ describe("shades", () => {
 
 describe("safe zone", () => {
   it("shades cannot enter a 6 m radius around a lit lantern", () => {
-    const sc = { lanterns: [L("L1", { pos: [0, 0, 0], lit: true })], shades: [{ id: "S1", pos: [25, 1, 0] }] };
+    const sc = { lanterns: [L("L1", { pos: [0, 0, 0], lit: true })], shades: [{ id: "S1", pos: [10, 1, 0] }] }; // within the 12 m detect range so it really charges the barrier
     const rows = run({ ticks: 900, scenario: sc });
-    for (const r of snaps(rows)) expect(Math.hypot(r.shades[0].pos[0], r.shades[0].pos[2])).toBeGreaterThanOrEqual(6 - 1e-3);
+    const dists = snaps(rows).map((r) => Math.hypot(r.shades[0].pos[0], r.shades[0].pos[2]));
+    for (const d of dists) expect(d).toBeGreaterThanOrEqual(6 - 1e-3);
+    expect(Math.min(...dists)).toBeLessThan(6.1); // proves the shade actually pressed against the rim
     expect(events(rows, "player_hit")).toHaveLength(0);
   });
   it("a shade inside a freshly lit zone is pushed to the rim within 30 ticks, harmless meanwhile", () => {

@@ -2,7 +2,7 @@
 
 > Video demo: _(sẽ thêm ở Phase 4 — Release `v1.0.0`)_
 
-Game 3D góc nhìn thứ ba (Three.js + TypeScript). Bạn là **Mây**, người giữ đèn nhỏ tuổi: gom đom đóm, thắp lại 5 Đèn Lồng Lớn trên Đảo Bến, né **Bóng Mực** hoặc tỏa sáng để xua chúng. Thắp hết đèn thì thắng; hết lửa hoặc hết đêm (300 s) thì thua.
+Game 3D góc nhìn thứ ba (Three.js + TypeScript). Bạn là **Mây**, người giữ đèn nhỏ tuổi: gom đom đóm, thắp lại các Đèn Lồng Lớn trên 3 hòn đảo (Đảo Bến, Đảo Cau, Đảo Chuông), né **Bóng Mực** và **Gió Lạc**, hoặc tỏa sáng để xua chúng. Thắp hết đèn thì thắng Đêm; hết Ngọn Lửa hoặc hết giờ thì thua.
 
 ## Chạy (tối đa 3 lệnh)
 ```bash
@@ -16,36 +16,37 @@ npm run dev        # mở http://localhost:5173
 |---|---|
 | W A S D / mũi tên | Di chuyển (theo hướng camera) |
 | Space | Nhảy |
-| E | Nạp đom đóm vào đèn (đứng trong 3 m) |
-| Q hoặc F | Tỏa sáng (tốn 2 đom đóm, hồi 3 s) |
+| Shift | Lướt (14 m/s, hồi 1.5 s) |
+| E | Nạp đom đóm vào đèn (đứng trong 2 m) |
+| Q hoặc F | Tỏa sáng (tốn 3 đom đóm, hồi 3 s) |
 | Kéo chuột / J, L | Xoay camera |
-| R | Chơi lại |
+| Esc / P | Tạm dừng (Tiếp tục / Chơi lại Đêm / Cài đặt / Về menu) |
 
-## Luật và điểm
-- Nhặt đom đóm trong 1.5 m (mang tối đa 6). Thắp một đèn cần 6 đom đóm.
-- Bóng Mực chạm: −1 lửa (3 lửa), rơi một nửa đom đóm đang mang, miễn nhiễm 1.5 s. Không vào được bán kính 8 m quanh đèn **đã thắp**.
-- Tỏa sáng: choáng 3 s + đẩy lùi 4 m mọi Bóng Mực trong 7 m.
-- Điểm: 10/đom đóm, 200/đèn, 25/lần choáng, thắng: +2 mỗi giây còn lại, +100 mỗi lửa còn.
-- Mọi con số nằm trong [`game.contract.json`](game.contract.json) (`tuning`), và game đọc đúng file đó. Các giả định: [`docs/notes/phase-1.md`](docs/notes/phase-1.md).
+## Luật chính
+- Mang tối đa 10 đom đóm; thắp một đèn cần 10 (nạp nhiều lần được). Bị Bóng Mực chạm: −1 Ngọn Lửa (3 Lửa), rơi một nửa đom đóm, bất tử 1.5 s. Rơi khỏi đảo: −1 Lửa, mất hết đom đóm, hồi sinh sau 1 s.
+- Đèn đã sáng tạo vùng an toàn 6 m mà Bóng Mực không vào được.
+- Gió Lạc (Đêm 2–3) cướp 3 đom đóm của người mang ≥ 5. Bùa Gió: chạy 7.2 m/s, Lướt không hồi chiêu (10 s).
+- Điểm: +10/đom đóm nạp, +100/đèn, +5/Bóng Mực trúng Tỏa Sáng; thắng: +2/giây còn lại, +50/Lửa còn. Tổng điểm = tổng các Đêm đã thắng.
+- Toàn bộ con số nằm ở [`game.contract.json`](game.contract.json) (`tuning`) và game đọc đúng file đó. Giả định: [`docs/notes/phase-2.md`](docs/notes/phase-2.md). Spec + tiêu chí nghiệm thu: [`docs/spec/phase-2.md`](docs/spec/phase-2.md).
 
-## Headless (Test Contract v1.0)
+## Headless (Test Contract v1.1)
 ```bash
-npx tsx src/headless/cli.ts --seed 1 --night 1 --ticks 600 --out out.jsonl \
-  [--scenario scenarios/pulse.scenario.json] [--inputs scenarios/pulse.inputs.json] [--snapshot-every 10]
+npx tsx src/headless/cli.ts --seed 1 --night 2 --ticks 600 --out out.jsonl \
+  [--scenario scenario.json] [--inputs inputs.json] [--snapshot-every 10]
 ```
-Không cần GPU/cửa sổ. Cùng seed + scenario + inputs cho output giống hệt. File sai định dạng → mã thoát 2.
+Không cần GPU/cửa sổ; `--night` 1, 2 hoặc 3. Cùng seed + scenario + inputs cho output giống hệt. File sai định dạng → mã thoát 2. Một Đêm đầy đủ (21.600 tick) chạy ~1.5 s.
 
 ## Kiểm chứng
 ```bash
-npm test          # 21 test: luật game, tính tất định, mã thoát CLI
-npm run proof     # chạy CLI thật trên scenarios/, ghi docs/proof/phase-1/REPORT.md
+npm test                  # 44 test: luật game, 3 bản đồ, tính tất định, mã thoát CLI, thời gian chạy
+npm run proof -- phase-2  # chạy CLI thật trên 18 ca, ghi docs/proof/phase-2/REPORT.md
 ```
-Bằng chứng Phase 1: [`docs/proof/phase-1/REPORT.md`](docs/proof/phase-1/REPORT.md). CI chạy build + test + proof mỗi lần push.
+Bằng chứng: [`docs/proof/phase-1`](docs/proof/phase-1/REPORT.md), [`docs/proof/phase-2`](docs/proof/phase-2/REPORT.md). CI chạy build + test + proof mỗi lần push.
 
 ## Harness AI
 [`AGENTS.md`](AGENTS.md) (+ `CLAUDE.md`), hook Stop chặn kết thúc khi test đỏ (`.claude/settings.json`), skill `verify-headless` (`.claude/skills/`).
 
 ## Sáng tạo của tôi
-_(Phase 1: chưa thêm. Ý định: đèn nhỏ trên nón của Mây sáng theo số đom đóm đang mang — chỉ ở phần hiển thị, không ảnh hưởng headless.)_
+_(chưa thêm. Hiện chỉ có halo trên nón của Mây thay đổi theo số đom đóm đang mang, thuần hiển thị, không ảnh hưởng headless.)_
 
-Tài liệu đề bài gốc: [`docs/LAB-README.md`](docs/LAB-README.md). Nguồn asset: [`CREDITS.md`](CREDITS.md).
+Đề bài gốc: [`docs/LAB-README.md`](docs/LAB-README.md). Nguồn asset: [`CREDITS.md`](CREDITS.md).

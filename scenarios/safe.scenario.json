@@ -1,4 +1,0 @@
-{ "random_motes": false, "random_shades": false,
-  "player": { "pos": [0,0,0], "flames": 3 },
-  "lanterns": [ { "id": "L1", "pos": [0,0,0], "lit": true } ],
-  "motes": [], "shades": [ { "id": "S1", "pos": [25,1,0] } ] }
