@@ -6,6 +6,7 @@ import { loadSettings, saveSettings } from "./settings";
 import { PAL, buildWorld } from "./world";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+const rimColor = (cb: boolean) => (cb ? 0x00b3ff : PAL.shadeRim); // Ticket-03 section 6: #7A3CFF -> #00B3FF
 const on = (id: string, fn: () => void) => $(id).addEventListener("click", fn);
 
 // ---------------------------------------------------------------- three.js scene
@@ -62,7 +63,7 @@ const hatGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow("rgba(255,
   scene.add(player);
 }
 
-interface LanternView { group: THREE.Group; body: THREE.Mesh; halo: THREE.Sprite; pool: THREE.Mesh; ring: THREE.Mesh }
+interface LanternView { group: THREE.Group; body: THREE.Mesh; halo: THREE.Sprite; pool: THREE.Mesh; ring: THREE.Mesh; bar: THREE.Group; barFill: THREE.Mesh; tear: THREE.Mesh }
 const lanternViews = new Map<string, LanternView>();
 const shadeViews = new Map<string, THREE.Group>();
 const moteViews = new Map<string, THREE.Sprite>();
@@ -82,8 +83,15 @@ function makeLantern(): LanternView {
   pool.rotation.x = -Math.PI / 2; pool.position.y = 0.06;
   const ring = new THREE.Mesh(new THREE.RingGeometry(TUNING.safe_radius - 0.2, TUNING.safe_radius, 64), new THREE.MeshBasicMaterial({ color: PAL.lampOn, transparent: true, opacity: 0.35, side: THREE.DoubleSide }));
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05; ring.visible = false;
-  group.add(post, body, halo, pool, ring); scene.add(group);
-  return { group, body, halo, pool, ring };
+  // fuel bar above the lantern (only while lit) and a torn-paper patch that shows only when it is out
+  const barBg = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.28), new THREE.MeshBasicMaterial({ color: 0x14183a, side: THREE.DoubleSide }));
+  const barFill = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 0.18), new THREE.MeshBasicMaterial({ color: PAL.lampOn, side: THREE.DoubleSide }));
+  const bar = new THREE.Group(); // billboard: the whole group faces the camera so the fill stays in front of the background
+  barFill.position.z = 0.02; bar.add(barBg, barFill); bar.position.y = 5.1;
+  const tear = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.9), new THREE.MeshBasicMaterial({ color: 0x23242e, side: THREE.DoubleSide }));
+  tear.position.set(0.5, 3.4, 0.55); tear.rotation.z = 0.5;
+  group.add(post, body, halo, pool, ring, bar, tear); scene.add(group);
+  return { group, body, halo, pool, ring, bar, barFill, tear };
 }
 function makeShade(): THREE.Group {
   const g = new THREE.Group();
@@ -91,7 +99,9 @@ function makeShade(): THREE.Group {
   const rim = new THREE.Mesh(new THREE.SphereGeometry(1.0, 16, 12), new THREE.MeshBasicMaterial({ color: PAL.shadeRim, side: THREE.BackSide })); rim.scale.y = 1.15;
   const eye = new THREE.MeshBasicMaterial({ color: 0xe6d9ff });
   for (const sx of [-0.3, 0.3]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), eye); e.position.set(sx, 0.25, 0.78); blob.add(e); }
-  g.add(blob, rim); g.userData = { blob, rim }; scene.add(g);
+  const beam = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: PAL.shadeRim }));
+  beam.frustumCulled = false; beam.visible = false;
+  g.add(blob, rim); g.userData = { blob, rim, beam, eye }; scene.add(g); scene.add(beam);
   return g;
 }
 function makeDrifter(): THREE.Group {
@@ -122,6 +132,7 @@ function loadNight(night: 1 | 2 | 3): void {
 const settings = loadSettings();
 const audio = new Audio3();
 audio.setVolume(settings.volume);
+document.body.classList.toggle("cb", settings.colorblind);
 const held = new Set<string>();
 const latched = { jump: false, dash: false, interact: false, pulse: false };
 let camYaw = 0, faceYaw = 0, dragging = false;
@@ -162,10 +173,11 @@ type Screen = "menu" | "intro" | "play" | "pause" | "settings" | "result" | "daw
 let screen: Screen = "menu", settingsFrom: Screen = "menu";
 let night: 1 | 2 | 3 = 1, totalScore = 0;
 let sim = new Sim(1);
+const need = (n: number) => Math.ceil(TUNING.win_ratio * n);
 const INTRO = [
-  ["Đêm 1 · Đảo Bến", "Đèn ở bến tắt hết rồi, con. Gom đom đóm, thắp đủ năm ngọn Đèn Lồng Lớn trước khi trời sáng nhé."],
-  ["Đêm 2 · Đảo Cau", "Hai đảo nối nhau bằng một cây cầu tre, không có lan can. Bước lên bục vàng để bay sang đảo bên kia. Coi chừng Gió Lạc: nó hay cướp đom đóm của người mang nặng."],
-  ["Đêm 3 · Đảo Chuông", "Đảo Chuông có ba tầng. Đi lên bằng dốc hoặc bục vàng. Gió mạnh sẽ nổi lên mỗi nửa phút, thấy lá bay thì bám chắc nhé."],
+  ["Đêm 1 · Đảo Bến", "Đèn ở bến tắt hết rồi, con. Thắp lại các ngọn Đèn Lồng Lớn và giữ cho ít nhất 3 trong 5 ngọn còn sáng tới bình minh. Đèn cạn dầu thì châm thêm đom đóm nhé."],
+  ["Đêm 2 · Đảo Cau", "Hai đảo nối nhau bằng một cây cầu tre, không có lan can. Bước lên bục vàng để bay sang đảo bên kia. Coi chừng Gió Lạc: nó hay cướp đom đóm của người mang nặng. Cần giữ sáng ít nhất 4 trong 6 ngọn tới bình minh. Bóng Mực sẽ lẻn tới hút dầu đèn yếu."],
+  ["Đêm 3 · Đảo Chuông", "Đảo Chuông có ba tầng. Đi lên bằng dốc hoặc bục vàng. Gió mạnh sẽ nổi lên mỗi nửa phút, thấy lá bay thì bám chắc nhé. Cần giữ sáng ít nhất 5 trong 7 ngọn tới bình minh."],
 ];
 const ALL: Screen[] = ["menu", "intro", "pause", "settings", "result", "dawn"];
 const ID: Record<string, string> = { menu: "sMenu", intro: "sIntro", pause: "sPause", settings: "sSettings", result: "sResult", dawn: "sDawn" };
@@ -175,7 +187,7 @@ function show(s: Screen): void {
   for (const k of ALL) $(ID[k]).classList.toggle("hidden", k !== s);
   $("hud").classList.toggle("hidden", s !== "play" && s !== "pause");
   audio.setMusic(s === "play");
-  if (s === "settings") { $<HTMLInputElement>("setVol").value = String(Math.round(settings.volume * 100)); $<HTMLInputElement>("setSens").value = String(Math.round(settings.sensitivity * 100)); syncSettingsLabels(); }
+  if (s === "settings") { $<HTMLInputElement>("setVol").value = String(Math.round(settings.volume * 100)); $<HTMLInputElement>("setSens").value = String(Math.round(settings.sensitivity * 100)); syncSettingsLabels(); $<HTMLInputElement>("setCb").checked = settings.colorblind; }
 }
 function syncSettingsLabels() { $("setVolV").textContent = `${Math.round(settings.volume * 100)}%`; $("setSensV").textContent = `${Math.round(settings.sensitivity * 100)}%`; }
 
@@ -205,6 +217,7 @@ on("bResMenu", () => show("menu"));
 on("bDawnMenu", () => show("menu"));
 on("bNext", () => { if (sim.state === "won") showIntro((night + 1) as 2 | 3); else startNight(night); });
 $<HTMLInputElement>("setVol").addEventListener("input", (e) => { settings.volume = Number((e.target as HTMLInputElement).value) / 100; audio.setVolume(settings.volume); syncSettingsLabels(); saveSettings(settings); });
+$<HTMLInputElement>("setCb").addEventListener("change", (e) => { settings.colorblind = (e.target as HTMLInputElement).checked; document.body.classList.toggle("cb", settings.colorblind); saveSettings(settings); });
 $<HTMLInputElement>("setSens").addEventListener("input", (e) => { settings.sensitivity = Number((e.target as HTMLInputElement).value) / 100; syncSettingsLabels(); saveSettings(settings); });
 
 let lastSec = -1;
@@ -233,7 +246,7 @@ function endNight(won: boolean, reason: string): void {
   if (won) totalScore += sim.score;
   setTimeout(() => {
     if (won && night === 3) { $("dawnScore").textContent = String(totalScore); show("dawn"); return; }
-    $("resTitle").textContent = won ? `Đêm ${night} đã sáng!` : reason === "dawn" ? "Trời sáng mất rồi…" : "Ngọn lửa của Mây đã tắt";
+    $("resTitle").textContent = won ? `Đảo vẫn sáng tới bình minh!` : reason === "dawn" ? "Trời sáng mà đảo chưa đủ sáng…" : "Ngọn lửa của Mây đã tắt";
     $("resText").textContent = `Điểm đêm này: ${sim.score}${won ? ` · Tổng: ${totalScore}` : ""}`;
     $("bNext").textContent = won ? "Đêm kế tiếp" : "Chơi lại Đêm này";
     show("result");
@@ -242,7 +255,6 @@ function endNight(won: boolean, reason: string): void {
 
 // ---------------------------------------------------------------- per-frame sync
 const set = (id: string, v: string) => { const el = $(id); if (el.textContent !== v) el.textContent = v; };
-let motesBuilt = false;
 function updateHud(): void {
   const P = sim.player, lit = sim.lanterns.filter((l) => l.lit).length;
   set("hudFlames", "❤".repeat(Math.max(0, P.flames)) + "♡".repeat(Math.max(0, TUNING.flames - P.flames)));
@@ -251,20 +263,24 @@ function updateHud(): void {
   $("hudTime").classList.toggle("low", sec <= 30);
   if (sec <= 10 && sec !== lastSec && sec > 0 && screen === "play") audio.play("tick");
   lastSec = sec;
-  set("hudLit", `${lit}/${sim.lanterns.length}`); set("hudScore", String(sim.score));
+  set("hudLit", `${lit}/${sim.lanterns.length} (cần ${need(sim.lanterns.length)})`); set("hudScore", String(sim.score));
   const bar = $("hudMotes");
-  if (!motesBuilt) { for (let i = 0; i < sim.capacity; i++) { const d = document.createElement("div"); d.className = "slot"; bar.appendChild(d); } motesBuilt = true; }
+  while (bar.children.length < sim.capacity) { const d = document.createElement("div"); d.className = "slot"; bar.appendChild(d); }
+  while (bar.children.length > sim.capacity) bar.removeChild(bar.lastChild as Node);
+  set("hudCap", `${P.carried}/${sim.capacity}`);
   Array.from(bar.children).forEach((c, i) => c.classList.toggle("on", i < P.carried));
   $("cdDash").classList.toggle("ready", P.dashCd === 0);
   $("cdPulse").classList.toggle("ready", P.pulseCd === 0 && P.carried >= TUNING.pulse_cost);
   // prompt near an unlit lantern
-  const near = sim.lanterns.filter((l) => !l.lit && Math.hypot(l.x - P.x, l.z - P.z) <= TUNING.interact_radius + 1.5)[0];
+  const near = sim.lanterns.filter((l) => (!l.lit || l.fuelU < TUNING.fuel_max * 60) && Math.hypot(l.x - P.x, l.z - P.z) <= TUNING.interact_radius + 1.5)[0];
   const pr = $("hudPrompt");
   pr.classList.toggle("hidden", !near);
-  if (near) pr.textContent = `E — Nạp ánh sáng (${near.deposited}/${TUNING.lantern_cost})`;
+  if (near) pr.textContent = near.lit ? `E — Châm dầu (${Math.round(near.fuelU / 60)}/${TUNING.fuel_max})` : `E — Nạp ánh sáng (${near.deposited}/${near.everLit ? TUNING.relight_cost : TUNING.lantern_cost})`;
   const warn = $("hudWarn");
-  warn.classList.toggle("hidden", !sim.wind.warning && !sim.wind.active);
-  warn.textContent = sim.wind.active ? "Gió mạnh!" : "Gió sắp thổi!";
+  const lowFuel = sim.lanterns.some((l) => l.lit && l.fuelU < TUNING.low_fuel_threshold * 60);
+  const draining = sim.shades.some((s) => s.state === "drain");
+  warn.classList.toggle("hidden", !sim.wind.warning && !sim.wind.active && !lowFuel && !draining);
+  warn.textContent = draining ? "Bóng Mực đang hút dầu đèn!" : lowFuel ? "Đèn sắp hết dầu!" : sim.wind.active ? "Gió mạnh!" : "Gió sắp thổi!";
   // arrow to the nearest unlit lantern when it is off-screen
   let target: { x: number; y: number; z: number } | null = null, td = Infinity;
   for (const l of sim.lanterns) if (!l.lit) { const d = Math.hypot(l.x - P.x, l.z - P.z); if (d < td) { td = d; target = l; } }
@@ -290,10 +306,17 @@ function syncViews(dt: number, clock: number): void {
     if (!v) { v = makeLantern(); lanternViews.set(l.id, v); }
     v.group.position.set(l.x, l.y, l.z);
     const mt = v.body.material as THREE.MeshStandardMaterial;
+    const fuel = l.fuelU / 60, low = l.lit && fuel < TUNING.low_fuel_threshold, blinkOff = low && Math.floor(clock * 2) % 2 === 1; // 1 Hz: 0.5 s on, 0.5 s off
     mt.color.setHex(l.lit ? PAL.lampCore : PAL.lampOff);
-    mt.emissiveIntensity = l.lit ? 2 + Math.sin(clock * 3 + l.x) * 0.2 : (l.deposited / TUNING.lantern_cost) * 1.2;
-    (v.halo.material as THREE.SpriteMaterial).opacity = l.lit ? 0.9 : (l.deposited / TUNING.lantern_cost) * 0.4;
-    (v.pool.material as THREE.MeshBasicMaterial).opacity = l.lit ? 0.45 : 0; v.ring.visible = l.lit;
+    mt.emissiveIntensity = l.lit ? (blinkOff ? 0.4 : 2 + Math.sin(clock * 3 + l.x) * 0.2) : (l.deposited / (l.everLit ? TUNING.relight_cost : TUNING.lantern_cost)) * 1.2;
+    v.body.scale.y = l.lit ? 1 : 0.8; v.body.position.y = l.lit ? 3.6 : 3.4; // an unlit lantern is squashed by 20% (readable without colour)
+    v.tear.visible = !l.lit;
+    v.bar.visible = l.lit && !blinkOff;
+    v.barFill.scale.x = Math.max(0.001, fuel / TUNING.fuel_max); v.barFill.position.x = -1.05 * (1 - v.barFill.scale.x);
+    (v.barFill.material as THREE.MeshBasicMaterial).color.setHex(low ? 0xffffff : PAL.lampOn);
+    v.bar.lookAt(camera.position);
+    (v.halo.material as THREE.SpriteMaterial).opacity = l.lit ? (blinkOff ? 0.3 : 0.9) : (l.deposited / TUNING.lantern_cost) * 0.4;
+    (v.pool.material as THREE.MeshBasicMaterial).opacity = l.lit ? 0.45 : 0; v.ring.visible = sim.safeOn(l);
   }
   player.position.set(P.x, P.y, P.z);
   player.rotation.y = faceYaw;
@@ -310,8 +333,16 @@ function syncViews(dt: number, clock: number): void {
     (g.userData.blob as THREE.Mesh).scale.y = st ? 0.6 : 1.15;
     ((g.userData.blob as THREE.Mesh).material as THREE.MeshStandardMaterial).color.setHex(st ? PAL.shadeStun : PAL.shade);
     g.scale.setScalar(s.state === "spawning" ? 0.4 : 1);
+    ((g.userData.rim as THREE.Mesh).material as THREE.MeshBasicMaterial).color.setHex(rimColor(settings.colorblind));
+    (g.userData.eye as THREE.MeshBasicMaterial).color.setHex(settings.colorblind ? 0x00b3ff : 0xe6d9ff);
+    const beam = g.userData.beam as THREE.Line, tl = sim.lanterns.find((x) => x.id === s.target);
+    beam.visible = s.state === "drain" && !!tl;
+    if (beam.visible && tl) {
+      (beam.material as THREE.LineBasicMaterial).color.setHex(rimColor(settings.colorblind));
+      beam.geometry.setFromPoints([new THREE.Vector3(s.x, s.gy + 1, s.z), new THREE.Vector3(tl.x, tl.y + 3.6, tl.z)]);
+    }
   }
-  for (const [id, g] of shadeViews) if (!seen.has(id)) { scene.remove(g); shadeViews.delete(id); }
+  for (const [id, g] of shadeViews) if (!seen.has(id)) { scene.remove(g); scene.remove(g.userData.beam); shadeViews.delete(id); }
 
   seen.clear();
   for (const m of sim.motes) {

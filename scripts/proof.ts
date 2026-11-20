@@ -1,10 +1,10 @@
 // Runs the REAL headless CLI on inline scenarios and checks the output against the requirement each one proves.
-// Usage: npm run proof [-- <phase-dir-name>]   (default: phase-2). Writes cases + raw output + REPORT.md to docs/proof/<phase>/.
+// Usage: npm run proof [-- <phase-dir-name>]   (default: phase-3). Writes cases + raw output + REPORT.md to docs/proof/<phase>/.
 import { execSync, spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 type Row = Record<string, any>;
-const PHASE = process.argv[2] ?? "phase-2";
+const PHASE = process.argv[2] ?? "phase-3";
 const OUT = `docs/proof/${PHASE}`;
 mkdirSync(`${OUT}/cases`, { recursive: true });
 
@@ -34,9 +34,9 @@ const results: { req: string; how: string; ok: boolean; detail: string }[] = [];
 const check = (req: string, how: string, ok: boolean, detail: string) => results.push({ req, how, ok, detail });
 
 // ---- Phase 1 behaviours, re-proven with the Ticket-02 standard numbers (regression)
-{
-  const { rows } = cli({ name: "r1-win", ticks: 100, scenario: { player: { carried: 10 }, lanterns: [L("L1", { pos: [0, 0, 1] }), ...litRest] }, inputs: press(0, "interact") });
-  check("[P1] Thắp hết đèn thì thắng", "r1-win", ev(rows, "game_over")[0]?.data.result === "won" && end(rows).state === "won", JSON.stringify({ game_over: ev(rows, "game_over")[0]?.data, end: end(rows) }));
+{ // Ticket-03 [THAY THẾ]: lighting every lantern no longer wins; surviving to dawn with enough lit lanterns does
+  const all = cli({ name: "r1-no-early-win", ticks: 600, scenario: { player: { carried: 10 }, lanterns: [L("L1", { pos: [0, 0, 1] }), ...litRest] }, inputs: press(0, "interact") });
+  check("[P1→P3] Thắp đủ đèn KHÔNG còn thắng sớm (luật bị Ticket-03 thay)", "r1-no-early-win", ev(all.rows, "lantern_lit").length === 1 && ev(all.rows, "game_over").length === 0 && end(all.rows).state === "playing", JSON.stringify({ lantern_lit: ev(all.rows, "lantern_lit")[0]?.data, game_over: ev(all.rows, "game_over").length, end: end(all.rows) }));
 }
 {
   const { rows } = cli({ name: "r2-hit", ticks: 300, scenario: { player: { carried: 5 }, shades: [{ id: "S1", pos: [3, 1, 0] }] } });
@@ -124,6 +124,48 @@ const check = (req: string, how: string, ok: boolean, detail: string) => results
 {
   const r = cli({ name: "n11-fullnight", night: 3, seed: 5, every: 10, ticks: 21600, scenario: { random_motes: true, random_shades: true, motes: undefined, shades: undefined } });
   check("[P2] Một Đêm đầy đủ (≤ 21.600 tick) headless ≤ 30 s (gồm khởi động tsx)", "n11-fullnight", r.sec <= 30, `${r.sec.toFixed(1)} s, kết thúc: ${JSON.stringify(end(r.rows))}`);
+}
+
+// ---- Phase 3 (Ticket-03) requirements
+{
+  const { rows } = cli({ name: "d1-fuel", ticks: 120, scenario: { lanterns: [L("L1", { lit: true })] } });
+  const f = (t: number) => snap(rows, t).lanterns[0].fuel;
+  check("[P3] Đèn vừa thắp có fuel 100, hao 1.0/giây", "d1-fuel", f(0) === 100 && f(60) === 99 && f(120) === 98, `fuel@0=${f(0)}, @60=${f(60)}, @120=${f(120)}`);
+}
+{
+  const { rows } = cli({ name: "d2-refuel", ticks: 6, scenario: { player: { carried: 9 }, lanterns: [L("L1", { pos: [0, 0, 1], lit: true, fuel: 55 })] }, inputs: press(0, "interact") });
+  const r = ev(rows, "refuel")[0];
+  check("[P3] Châm dầu: used = min(mang, ceil((100−fuel)/10)), +10 fuel/đom đóm, +5 điểm/đom đóm", "d2-refuel (fuel 55, mang 9)", r?.data.amount === 5 && r.data.fuel === 100 && snap(rows, 1).player.carried === 4 && snap(rows, 1).score === 25, JSON.stringify({ event: r?.data, carried: snap(rows, 1).player.carried, score: snap(rows, 1).score }));
+}
+{
+  const { rows } = cli({ name: "d3-out-relight", ticks: 120, scenario: { player: { carried: 5, pos: [0, 0, 0] }, lanterns: [L("L1", { pos: [0, 0, 1], lit: true, fuel: 0.5 })] }, inputs: [...press(40, "interact")] });
+  const out = ev(rows, "lantern_out")[0], lit = ev(rows, "lantern_lit")[0];
+  check("[P3] Hết dầu → tắt (deposited 0, ever_lit giữ); thắp lại chỉ tốn 5, +40, relight:true", "d3-out-relight", out?.tick === 30 && lit?.data.relight === true && snap(rows, 41).lanterns[0].relit_count === 1 && snap(rows, 41).score === 25 + 40, JSON.stringify({ out: out?.tick, lit: lit?.data, score: snap(rows, 41).score, lantern: snap(rows, 41).lanterns[0] }));
+}
+{
+  const { rows } = cli({ name: "d4-drain", ticks: 360, scenario: { lanterns: [L("L1", { pos: [30, 0, 0], lit: true, fuel: 20 })], shades: [{ id: "S1", pos: [34, 1, 0] }] } });
+  const dr = rows.find((r) => r.type === "snapshot" && r.shades[0].state === "drain")!;
+  const t0 = dr.tick, rate = snap(rows, t0).lanterns[0].fuel - snap(rows, t0 + 60).lanterns[0].fuel;
+  check("[P3] Bóng Mực wander tới đèn yếu (<30), vào ≤ 2 m thì drain: hút 5/s (+1/s hao = 6/s), event fuel_drain mỗi 60 tick", "d4-drain", !!dr && Math.abs(rate - 6) < 0.2 && ev(rows, "fuel_drain").length >= 1, JSON.stringify({ drain_from_tick: t0, loss_per_s: +rate.toFixed(2), fuel_drain: ev(rows, "fuel_drain")[0] }));
+}
+{
+  const { rows } = cli({ name: "d5-low-fuel-zone", ticks: 200, scenario: { lanterns: [L("L1", { pos: [0, 0, 0], lit: true, fuel: 31 })], shades: [{ id: "S1", pos: [10, 1, 0] }] } });
+  const dist = (t: number) => Math.hypot(snap(rows, t).shades[0].pos[0], snap(rows, t).shades[0].pos[2]);
+  check("[P3] Đúng 30 vẫn còn vùng an toàn, dưới 30 thì mất", "d5-low-fuel-zone (fuel 31 → 30 ở tick 60)", Math.abs(dist(60) - 6) < 0.01 && Math.min(...rows.filter((r) => r.type === "snapshot").map((r) => Math.hypot(r.shades[0].pos[0], r.shades[0].pos[2]))) < 5, `dist@60=${dist(60).toFixed(3)} (fuel ${snap(rows, 60).lanterns[0].fuel}), khoảng cách nhỏ nhất sau đó=${Math.min(...rows.filter((r) => r.type === "snapshot").map((r) => Math.hypot(r.shades[0].pos[0], r.shades[0].pos[2]))).toFixed(2)}`);
+}
+{
+  const ok = cli({ name: "d6-dawn-win", ticks: 500, scenario: { time_left_s: 2, lanterns: [L("L1", { lit: true }), L("L2", { lit: true }), L("L3", { lit: true })] } });
+  const bad = cli({ name: "d6-dawn-lose", ticks: 500, scenario: { time_left_s: 2, lanterns: [L("L1", { lit: true }), L("L2", { lit: true })] } });
+  check("[P3] Hết giờ: ≥ ceil(0.6n) đèn sáng → won/dawn_survived (+50+⌊fuel⌋ mỗi đèn, +50/Lửa); ít hơn → lost/dawn", "d6-dawn-win / d6-dawn-lose (Đêm 1, 3/5 và 2/5)", ev(ok.rows, "game_over")[0]?.data.reason === "dawn_survived" && end(ok.rows).score === 3 * (50 + 98) + 150 && ev(bad.rows, "game_over")[0]?.data.reason === "dawn", `win: ${JSON.stringify(end(ok.rows))}; lose: ${JSON.stringify(ev(bad.rows, "game_over")[0]?.data)}`);
+}
+{
+  const { rows } = cli({ name: "d7-capacity", ticks: 6, scenario: { player: { carried: 10 }, lanterns: [L("L1", { pos: [0, 0, 1] })] }, inputs: press(0, "interact") });
+  const c0 = rows[0].player.capacity, c1 = snap(rows, 1).player.capacity;
+  check("[P3] Sức chứa = 10 + 2×lần thắp thành công (tối đa 20)", "d7-capacity", c0 === 10 && c1 === 12, `capacity: ${c0} → ${c1} sau 1 lần thắp`);
+}
+{
+  const { rows } = cli({ name: "d8-pulse-drain", ticks: 6, scenario: { player: { pos: [25, 0, 0], carried: 3 }, lanterns: [L("L1", { pos: [30, 0, 0], lit: true, fuel: 20 })], shades: [{ id: "S1", pos: [29, 1, 0], state: "drain", target_lantern_id: "L1" }] }, inputs: press(0, "pulse") });
+  check("[P3] Tỏa Sáng trúng Bóng Mực đang drain: stunned, tổng +15", "d8-pulse-drain", snap(rows, 1).shades[0].state === "stunned" && snap(rows, 1).score === 15, `state=${snap(rows, 1).shades[0].state}, score=${snap(rows, 1).score}`);
 }
 
 const sha = execSync("git rev-parse --short HEAD").toString().trim();

@@ -1,0 +1,24 @@
+{
+ "random_motes": false,
+ "random_shades": false,
+ "random_drifters": false,
+ "wind_enabled": false,
+ "motes": [],
+ "shades": [],
+ "player": {
+  "carried": 3
+ },
+ "drifters": [
+  {
+   "id": "D1",
+   "pos": [
+    4,
+    1.5,
+    0
+   ],
+   "state": "flee",
+   "state_ticks_left": 200,
+   "stolen": 3
+  }
+ ]
+}

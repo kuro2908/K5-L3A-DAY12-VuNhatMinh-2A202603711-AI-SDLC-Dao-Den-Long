@@ -28,6 +28,9 @@
   #hudWarn { top:70px; left:50%; transform:translateX(-50%); color:var(--danger); }
   #arrow { position:absolute; width:0; height:0; border-left:14px solid transparent; border-right:14px solid transparent; border-bottom:26px solid var(--lamp); filter:drop-shadow(0 0 6px #FFB347); }
   #flash { position:fixed; inset:0; background:#FF5A5F; opacity:0; pointer-events:none; transition:opacity .35s; }
+  body.cb { --danger:#FFFFFF; }
+  body.cb #hudTime.low::before, body.cb #hudWarn::before { content:"\26A0  "; }
+  body.cb #flash { background:#FFFFFF; }
   @keyframes blink { 50% { opacity:.35; } }
   /* screens */
   .screen { position:fixed; inset:0; display:grid; place-items:center; text-align:center; background:rgba(8,12,30,.82); }
@@ -52,6 +55,7 @@
   <div id="hudTime" class="hud-box">05:00</div>
   <div id="hudRight" class="hud-box">Đèn <b id="hudLit">0/5</b><br>Điểm <b id="hudScore">0</b></div>
   <div id="hudMotes" class="hud-box"></div>
+  <div id="hudCap" class="hud-box" style="bottom:16px; left:calc(50% + 150px); transform:none">0/10</div>
   <div id="hudCd" class="hud-box">
     <div class="cd ready" id="cdDash"><i>⚡</i>Lướt</div>
     <div class="cd ready" id="cdPulse"><i>✦</i>Tỏa sáng</div>
@@ -95,6 +99,7 @@
     <h2>Cài đặt</h2>
     <label class="row">Âm lượng <input id="setVol" type="range" min="0" max="100" step="1"> <span id="setVolV"></span></label>
     <label class="row">Độ nhạy chuột <input id="setSens" type="range" min="20" max="300" step="5"> <span id="setSensV"></span></label>
+    <label class="row"><input id="setCb" type="checkbox"> Bảng màu dễ phân biệt (mù màu)</label>
     <button class="btn" id="bBack">Quay lại</button>
   </div>
 </div>
