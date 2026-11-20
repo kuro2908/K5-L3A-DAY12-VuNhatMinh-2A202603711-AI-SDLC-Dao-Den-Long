@@ -34,4 +34,10 @@ Xem mục "Kiểm tra clone sạch" bên dưới (điền sau khi chạy).
 - Token/chi phí Phase 4: **chủ repo điền từ `/cost`**.
 
 ## Kiểm tra clone sạch
-_(điền kết quả ở cuối Phase 4)_
+`git clone` repo local sang thư mục tạm mới (commit `7e4a2b4`, Windows 11, Node 24) rồi chỉ làm theo README:
+- `npm ci` — 15 s, sạch.
+- `npm run build` — qua kiểu + đóng gói.
+- `npx tsx src/headless/cli.ts --seed 1 --night 3 --ticks 600 --out smoke.jsonl` — chạy, dòng `end` đúng.
+- `npx vitest run` — **78/78 test** (2 file) đạt.
+- `npx tsx scripts/serve.ts --port 4999` — `GET /` = 200, `GET /api/leaderboard` = `{"entries":[]}`.
+Chưa thử trên máy khác/macOS/Linux (chỉ có máy Windows này).
