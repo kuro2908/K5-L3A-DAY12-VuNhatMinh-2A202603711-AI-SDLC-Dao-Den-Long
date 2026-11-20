@@ -1,9 +1,11 @@
 {
-  "contract_version": "1.2",
+  "contract_version": "1.3",
   "team": "2A202603711-vu-nhat-minh",
   "build_cmd": "npm ci && npm run build",
-  "run_cmd": "npm run dev",
+  "run_cmd": "npx tsx scripts/serve.ts",
   "headless_cmd": "npx tsx src/headless/cli.ts",
+  "bench_cmd": "npx tsx scripts/bench.ts",
+  "soak_cmd": "npx tsx scripts/soak.ts",
   "tuning": {
     "player_speed": 6,
     "carry_capacity": 10,
@@ -32,7 +34,7 @@
     "dash_duration_s": 0.2,
     "dash_cooldown_s": 1.5,
     "fuel_max": 100,
-    "fuel_decay_per_s": 1.0,
+    "fuel_decay_per_s": 1,
     "fuel_per_mote": 10,
     "win_ratio": 0.6,
     "drain_per_s": 5,

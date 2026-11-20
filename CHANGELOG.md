@@ -1,5 +1,13 @@
 # Changelog
 
+## Phase 4 — "Bình minh: phát hành v1.0.0" (tag `phase-4`, Contract v1.3)
+- **Breaking:** `run_cmd` là `npx tsx scripts/serve.ts` (server tĩnh + API bảng xếp hạng), không còn `npm run dev`; thêm `bench_cmd`, `soak_cmd` vào `game.contract.json`.
+- Thêm benchmark (`scripts/bench.ts`, cảnh chuẩn 200 Bóng Mực + 100 đom đóm) và soak test (`scripts/soak.ts`); `bench.json`, `soak.json` commit trong repo.
+- Thêm bảng xếp hạng cục bộ (top 10, lưu `data/leaderboard.json`, xuất bằng `--export-leaderboard`).
+- Thêm khả năng tiếp cận: đổi phím + báo trùng, phụ đề/chỉ báo hình ảnh, giảm chuyển động, chữ ≥ 18 px + chữ lớn ×1.25.
+- Hiệu năng: Bóng Mực/cây dùng InstancedMesh, đom đóm dùng Points, bỏ sao chép/sắp xếp mỗi tick trong sim (hành vi không đổi); 970 → 61 draw call.
+- Sửa: thân Bóng Mực không còn phát sáng (đúng bảng màu); ô mang/sức chứa không bị che.
+
 ## Phase 3 — "Đèn cạn dầu" (tag `phase-3`, Contract v1.2)
 Change Request thay luật cốt lõi. Quyết định thiết kế: [ADR-0001](docs/adr/0001-lantern-fuel-and-dawn-rule.md). Test bị thay: [docs/notes/phase-3.md](docs/notes/phase-3.md).
 

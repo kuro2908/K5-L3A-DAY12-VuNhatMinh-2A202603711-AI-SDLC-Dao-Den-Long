@@ -7,6 +7,7 @@ Game 3D Three.js + TypeScript. Logic thuần trong `src/sim` (không DOM/three),
 - Chơi: `npm run dev` (mở http://localhost:5173)
 - Test: `npm test` — phải xanh trước khi kết thúc việc
 - Headless: `npx tsx src/headless/cli.ts --seed 1 --night 1 --ticks 600 --out out.jsonl [--scenario f] [--inputs f]`
+- Phát hành: `npm start` (server + bảng xếp hạng), `npm run bench -- --seed 42 --duration 30 --out bench.json` (MỞ cửa sổ Chrome ~35 s), `npm run soak -- --seed 7 --nights 10 --out soak.json`
 - Bằng chứng: `npm run proof -- phase-N` (chạy CLI thật, ghi `docs/proof/phase-N/REPORT.md`)
 - Spec + acceptance criteria: `docs/spec/phase-N.md`; ghi chú/giả định: `docs/notes/phase-N.md`
 
@@ -25,6 +26,10 @@ Game 3D Three.js + TypeScript. Logic thuần trong `src/sim` (không DOM/three),
 - Nhiên liệu đèn lưu bằng số nguyên 1/60 (`fuelU`); `safeOn(l)` là nơi DUY NHẤT quyết định vùng an toàn. Đổi luật → xem `docs/adr/`.
 - Khi yêu cầu đổi: chạy test NGAY để biết chính xác test nào bị ảnh hưởng, ghi từng cái vào `docs/notes/phase-N.md` (sửa/xóa kèm lý do, không `skip`).
 - Patch nhiều chỗ: dùng script thay thế có kiểm tra mỏ neo (fail ồn ào); xóa script sau khi chạy.
+
+- Render: dùng InstancedMesh/Points + vật liệu dùng chung cho thực thể số đông (200 Bóng Mực phải ≈ vài draw call). Không tạo geometry/vật liệu riêng cho từng thực thể, không sao chép/sắp xếp mảng mỗi tick trong sim.
+- Mọi con số hiệu năng phải do `bench` đo, không đoán; đọc `frame_ms_max` và `frames_over_100ms` chứ không chỉ avg.
+- Màu hằng số lấy từ `PAL` (`src/render/world.ts`); đừng thêm phát sáng làm lệch bảng màu của ticket.
 
 ## Lỗi AI đã gặp (cập nhật khi lặp lại)
 - Đếm tick lệch 1 khi gán thời gian choáng trong cùng bước → đã có test "stun wears off".

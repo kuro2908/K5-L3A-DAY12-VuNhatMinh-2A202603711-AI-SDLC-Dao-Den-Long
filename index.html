@@ -5,45 +5,60 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Đảo Đèn Lồng</title>
 <style>
+  /* every text is >= 18px at 1280x720 (--ui); "large text" scales it by 1.25 */
   :root { --sky:#0E1430; --fog:#1B2350; --lamp:#FFB347; --core:#FFE9B0; --gold:#F2C14E; --danger:#FF5A5F; --text:#F5F1E6; --ui:18px; }
+  body.large { --ui:22.5px; }
+  body.cb { --danger:#FFFFFF; }
   html, body { margin:0; height:100%; overflow:hidden; background:var(--sky); color:var(--text); font:var(--ui)/1.4 "Segoe UI", Roboto, sans-serif; user-select:none; }
   #game { position:fixed; inset:0; }
   .hidden { display:none !important; }
-  /* HUD */
   #hud { position:fixed; inset:0; pointer-events:none; }
-  .hud-box { position:absolute; background:rgba(14,20,48,.7); border:1px solid #2a3360; border-radius:12px; padding:6px 14px; font-weight:700; }
+  .hud-box { position:absolute; background:rgba(14,20,48,.72); border:1px solid #2a3360; border-radius:12px; padding:.3em .8em; font-weight:700; }
   #hudFlames { top:12px; left:12px; letter-spacing:3px; }
-  #hudTime { top:12px; left:50%; transform:translateX(-50%); font-size:26px; font-variant-numeric:tabular-nums; }
+  #hudTime { top:12px; left:50%; transform:translateX(-50%); font-size:1.45em; font-variant-numeric:tabular-nums; }
   #hudTime.low { color:var(--danger); animation:blink 1s steps(2) infinite; }
+  body.rm #hudTime.low { animation:none; } /* reduced motion: no blinking either */
   #hudRight { top:12px; right:12px; text-align:right; }
   #hudRight b { color:var(--gold); }
-  #hudMotes { bottom:16px; left:50%; transform:translateX(-50%); display:flex; gap:5px; padding:8px 12px; }
-  .slot { width:22px; height:22px; border-radius:50%; border:2px solid #3a4580; }
+  #hudMotes { bottom:14px; left:50%; transform:translateX(-50%); display:flex; gap:5px; align-items:center; padding:.45em .7em; max-width:70vw; flex-wrap:wrap; justify-content:center; }
+  .slot { width:1.05em; height:1.05em; border-radius:50%; border:2px solid #3a4580; }
   .slot.on { background:radial-gradient(circle,#FFF6C2,#FFE58A 70%); border-color:#FFE58A; box-shadow:0 0 8px #FFE58A; }
-  #hudCd { bottom:16px; right:12px; display:flex; gap:10px; }
-  .cd { width:54px; text-align:center; font-size:14px; }
-  .cd i { display:block; font-style:normal; font-size:22px; }
+  #hudCap { bottom:calc(14px + 1.7em); left:12px; } /* above the key help line, clear of the cooldown icons */
+  #hudCd { bottom:14px; right:12px; display:flex; gap:12px; }
+  .cd { text-align:center; line-height:1.2; }
+  .cd i { display:block; font-style:normal; font-size:1.3em; }
   .cd.ready i { color:var(--core); } .cd:not(.ready) { opacity:.5; }
-  #hudPrompt { bottom:80px; left:50%; transform:translateX(-50%); }
-  #hudWarn { top:70px; left:50%; transform:translateX(-50%); color:var(--danger); }
-  #arrow { position:absolute; width:0; height:0; border-left:14px solid transparent; border-right:14px solid transparent; border-bottom:26px solid var(--lamp); filter:drop-shadow(0 0 6px #FFB347); }
-  #flash { position:fixed; inset:0; background:#FF5A5F; opacity:0; pointer-events:none; transition:opacity .35s; }
-  body.cb { --danger:#FFFFFF; }
+  #hudPrompt { bottom:calc(14px + 3.4em); left:50%; transform:translateX(-50%); }
+  #hudWarn { top:calc(12px + 2.6em); left:50%; transform:translateX(-50%); color:var(--danger); }
+  #caption { position:absolute; left:12px; top:calc(12px + 2.2em); display:flex; flex-direction:column; gap:4px; }
+  #caption div { background:rgba(14,20,48,.72); border-left:4px solid var(--gold); border-radius:6px; padding:.15em .6em; }
+  #count10 { position:absolute; left:50%; top:30%; transform:translateX(-50%); font-size:5em; font-weight:800; color:var(--danger); text-shadow:0 0 18px #000; }
+  .edge { position:absolute; width:0; height:0; border-left:14px solid transparent; border-right:14px solid transparent; border-bottom:26px solid var(--lamp); filter:drop-shadow(0 0 6px #FFB347); }
+  #arrowShade { border-bottom-color:#7A3CFF; filter:drop-shadow(0 0 6px #7A3CFF); }
+  body.cb #arrowShade { border-bottom-color:#00B3FF; filter:drop-shadow(0 0 6px #00B3FF); }
   body.cb #hudTime.low::before, body.cb #hudWarn::before { content:"\26A0  "; }
-  body.cb #flash { background:#FFFFFF; }
+  #flash { position:fixed; inset:0; background:var(--danger); opacity:0; pointer-events:none; transition:opacity .35s; }
+  .help { position:fixed; bottom:2px; left:12px; color:#aeb3cc; background:rgba(14,20,48,.6); padding:0 .5em; border-radius:6px; }
   @keyframes blink { 50% { opacity:.35; } }
-  /* screens */
-  .screen { position:fixed; inset:0; display:grid; place-items:center; text-align:center; background:rgba(8,12,30,.82); }
-  .screen h1 { font-size:48px; margin:0 0 6px; color:var(--lamp); }
-  .screen h2 { font-size:34px; margin:0 0 8px; color:var(--lamp); }
-  .screen p { max-width:560px; margin:6px auto; color:#c9cde6; }
+  .screen { position:fixed; inset:0; display:grid; place-items:center; text-align:center; background:rgba(8,12,30,.84); overflow:auto; }
+  .screen > div { padding:18px; max-width:min(720px, 92vw); }
+  .screen h1 { font-size:2.7em; margin:0 0 6px; color:var(--lamp); }
+  .screen h2 { font-size:1.9em; margin:0 0 8px; color:var(--lamp); }
+  .screen p { margin:6px auto; color:#c9cde6; }
   .screen .quote { color:var(--core); font-style:italic; }
-  button.btn { display:block; margin:10px auto; min-width:240px; padding:10px 22px; font:700 var(--ui) inherit; border:0; border-radius:10px; background:var(--lamp); color:#1a1206; cursor:pointer; }
+  button.btn { display:block; margin:10px auto; min-width:260px; padding:.5em 1.2em; font:700 1em inherit; border:0; border-radius:10px; background:var(--lamp); color:#1a1206; cursor:pointer; }
   button.btn.alt { background:#2a3360; color:var(--text); }
-  button.btn:focus-visible { outline:3px solid var(--core); }
-  label.row { display:flex; align-items:center; gap:12px; justify-content:center; margin:12px 0; }
-  .big { font-size:22px; }
-  .help { position:fixed; bottom:4px; left:12px; font-size:14px; color:#aeb3cc; }
+  button.btn:focus-visible, input:focus-visible { outline:3px solid var(--core); }
+  label.row { display:flex; align-items:center; gap:12px; justify-content:center; margin:10px 0; }
+  input[type=text] { font:inherit; padding:.3em .6em; border-radius:8px; border:2px solid #3a4580; background:#0b1028; color:var(--text); text-align:center; }
+  .msg { min-height:1.4em; color:var(--danger); }
+  table { margin:10px auto; border-collapse:collapse; }
+  th, td { padding:.25em .8em; border-bottom:1px solid #2a3360; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  tr.me td { color:var(--gold); font-weight:700; }
+  .keyrow { display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center; margin:6px 0; text-align:left; }
+  .keyrow button { min-width:9em; padding:.2em .8em; font:inherit; border-radius:8px; border:2px solid #3a4580; background:#0b1028; color:var(--text); cursor:pointer; }
+  .keyrow button.listening { border-color:var(--lamp); color:var(--lamp); }
 </style>
 </head>
 <body>
@@ -52,25 +67,29 @@
 
 <div id="hud" class="hidden">
   <div id="hudFlames" class="hud-box">❤❤❤</div>
-  <div id="hudTime" class="hud-box">05:00</div>
+  <div id="hudTime" class="hud-box">04:00</div>
   <div id="hudRight" class="hud-box">Đèn <b id="hudLit">0/5</b><br>Điểm <b id="hudScore">0</b></div>
   <div id="hudMotes" class="hud-box"></div>
-  <div id="hudCap" class="hud-box" style="bottom:16px; left:calc(50% + 150px); transform:none">0/10</div>
+  <div id="hudCap" class="hud-box">0/10</div>
   <div id="hudCd" class="hud-box">
     <div class="cd ready" id="cdDash"><i>⚡</i>Lướt</div>
     <div class="cd ready" id="cdPulse"><i>✦</i>Tỏa sáng</div>
   </div>
   <div id="hudPrompt" class="hud-box hidden"></div>
   <div id="hudWarn" class="hud-box hidden"></div>
-  <div id="arrow" class="hidden"></div>
-  <div class="help">WASD di chuyển · Space nhảy · Shift lướt · E nạp ánh sáng · Q tỏa sáng · kéo chuột xoay · Esc tạm dừng</div>
+  <div id="caption"></div>
+  <div id="count10" class="hidden"></div>
+  <div id="arrow" class="edge hidden"></div>
+  <div id="arrowShade" class="edge hidden"></div>
+  <div class="help" id="help"></div>
 </div>
 
 <div id="sMenu" class="screen">
   <div>
     <h1>Đảo Đèn Lồng</h1>
-    <p>Mây, người giữ đèn nhỏ tuổi, phải gom đom đóm và thắp lại các Đèn Lồng Lớn trước khi trời sáng.</p>
+    <p>Mây, người giữ đèn nhỏ tuổi, phải thắp lại các Đèn Lồng Lớn và giữ chúng sáng tới bình minh.</p>
     <button class="btn" id="bPlay">Bắt đầu</button>
+    <button class="btn alt" id="bBoard">Bảng xếp hạng</button>
     <button class="btn alt" id="bSettings">Cài đặt</button>
   </div>
 </div>
@@ -100,15 +119,30 @@
     <label class="row">Âm lượng <input id="setVol" type="range" min="0" max="100" step="1"> <span id="setVolV"></span></label>
     <label class="row">Độ nhạy chuột <input id="setSens" type="range" min="20" max="300" step="5"> <span id="setSensV"></span></label>
     <label class="row"><input id="setCb" type="checkbox"> Bảng màu dễ phân biệt (mù màu)</label>
+    <label class="row"><input id="setRm" type="checkbox"> Giảm chuyển động (tắt rung camera và chớp màn hình)</label>
+    <label class="row"><input id="setLarge" type="checkbox"> Chữ lớn (×1.25)</label>
+    <button class="btn alt" id="bKeys">Đổi phím</button>
     <button class="btn" id="bBack">Quay lại</button>
+  </div>
+</div>
+
+<div id="sKeys" class="screen hidden">
+  <div>
+    <h2>Đổi phím</h2>
+    <p>Bấm vào một phím rồi nhấn phím mới. Bấm lại chính nút đó để hủy.</p>
+    <div id="keyList"></div>
+    <div class="msg" id="keyMsg" role="status"></div>
+    <button class="btn alt" id="bKeysReset">Khôi phục mặc định</button>
+    <button class="btn" id="bKeysBack">Xong</button>
   </div>
 </div>
 
 <div id="sResult" class="screen hidden">
   <div>
     <h2 id="resTitle"></h2>
-    <p class="big" id="resText"></p>
+    <p id="resText"></p>
     <button class="btn" id="bNext"></button>
+    <button class="btn alt" id="bSave">Lưu điểm</button>
     <button class="btn alt" id="bResMenu">Về menu</button>
   </div>
 </div>
@@ -117,8 +151,28 @@
   <div>
     <h1>Bình Minh</h1>
     <p>Cả ba hòn đảo đã sáng lại. Cảm ơn con, người giữ đèn nhỏ.</p>
-    <p class="big">Tổng điểm: <b id="dawnScore" style="color:var(--gold)"></b></p>
-    <button class="btn" id="bDawnMenu">Về menu</button>
+    <p>Tổng điểm: <b id="dawnScore" style="color:var(--gold)"></b></p>
+    <button class="btn" id="bDawnSave">Lưu điểm</button>
+    <button class="btn alt" id="bDawnMenu">Về menu</button>
+  </div>
+</div>
+
+<div id="sName" class="screen hidden">
+  <div>
+    <h2>Lưu điểm</h2>
+    <p>Điểm: <b id="nameScore" style="color:var(--gold)"></b> · Số Đêm thắng: <b id="nameNights"></b></p>
+    <label class="row">Tên (3–12 ký tự: chữ, số, _) <input id="nameInput" type="text" maxlength="24" autocomplete="off"></label>
+    <div class="msg" id="nameMsg" role="alert"></div>
+    <button class="btn" id="bNameOk">Lưu</button>
+    <button class="btn alt" id="bNameSkip">Bỏ qua</button>
+  </div>
+</div>
+
+<div id="sBoard" class="screen hidden">
+  <div>
+    <h2>Bảng xếp hạng</h2>
+    <table id="boardTable"></table>
+    <button class="btn" id="bBoardBack">Quay lại</button>
   </div>
 </div>
 <script type="module" src="/src/render/main.ts"></script>

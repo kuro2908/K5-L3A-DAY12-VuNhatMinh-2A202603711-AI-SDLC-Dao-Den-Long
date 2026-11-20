@@ -67,6 +67,8 @@ export class Sim {
   tick = 0;       // steps taken (also while paused)
   simTick = 0;    // gameplay steps (frozen while paused)
   paused = false;
+  /** Benchmark scene (Ticket-04): shades keep wandering by the normal rules, everything else (spawns, damage, pickups, fuel, end of Night) is off. */
+  bench = false;
   state: SimState = "playing";
   score = 0;
   readonly night: 1 | 2 | 3;
@@ -81,6 +83,7 @@ export class Sim {
   wind = { active: false, dir_deg: 0, warning: false };
   private rng: () => number;
   private rm: boolean; private rs: boolean; private rd: boolean; private windOn: boolean;
+  private shadeOrder: Shade[] = [];
   private nextMote = 1; private nextShade = 1; private nextDrifter = 1; private nextCharm = 1;
   private prev = { jump: false, dash: false, interact: false, pulse: false, pause: false };
   private edges = { jump: false, dash: false, interact: false, pulse: false, pause: false };
@@ -146,6 +149,12 @@ export class Sim {
   private get speed(): number { return this.player.charm > 0 ? CHARM_SPEED : TUNING.player_speed; }
   private shadeSpeed(): number { return this.night === 3 ? TUNING.shade_speed_night3 : TUNING.shade_speed; }
 
+  /** Shades in ascending numeric id order. Returns the array itself when it is already sorted (the common case), so no per-tick copy/sort. */
+  private shadesById(): Shade[] {
+    const a = this.shades;
+    for (let i = 1; i < a.length; i++) if (idNum(a[i - 1].id) > idNum(a[i].id)) { this.shadeOrder = [...a].sort(byId); return this.shadeOrder; }
+    return a;
+  }
   private emit(out: SimEvent[], name: string, data: Record<string, unknown>): void { out.push({ type: "event", tick: this.tick, name, data }); }
   private addMote(x: number, y: number, z: number, kind: "random" | "dropped", ttl: number, pi: number): void { this.motes.push({ id: `M${this.nextMote++}`, x, y, z, kind, ttl, pi }); }
   private freshShadeId(): string { let id: string; do id = `S${this.nextShade++}`; while (this.shades.some((s) => s.id === id)); return id; }
@@ -177,6 +186,7 @@ export class Sim {
     }
     if (this.paused) return ev;
     this.simTick++;
+    if (this.bench) { this.moveShades(); return ev; }
 
     // 2. counters
     this.invulnActive = P.invuln > 0;
@@ -209,7 +219,7 @@ export class Sim {
   /** Step 2 (Ticket-03): lit lanterns burn fuel, draining shades add to it; a lantern at 0 goes out right away. */
   private updateFuel(ev: SimEvent[]): void {
     for (const l of this.lanterns) if (l.lit) l.fuelU -= TUNING.fuel_decay_per_s;
-    for (const s of [...this.shades].sort(byId)) {
+    for (const s of this.shadesById()) {
       if (s.state !== "drain") continue;
       const l = this.lanterns.find((x) => x.id === s.target);
       if (!l || !l.lit) continue;
@@ -352,7 +362,7 @@ export class Sim {
     if (!this.edges.interact || P.carried <= 0) return;
     // candidates: unlit lanterns, or lit ones that are not full of fuel; nearest wins, ties go to the smaller id
     let best: Lantern | null = null, bd = Infinity;
-    for (const l of [...this.lanterns].sort(byId)) {
+    for (const l of this.lanterns) {
       if (l.lit && l.fuelU >= TUNING.fuel_max * U) continue;
       const d = hxz(l.x, l.z, P.x, P.z);
       if (d <= TUNING.interact_radius && d < bd) { best = l; bd = d; }
@@ -415,7 +425,7 @@ export class Sim {
     P.pulseCd = T(TUNING.pulse_cooldown_s);
     const cx = P.x, cy = P.y + 0.8, cz = P.z;
     const stunned: string[] = [];
-    for (const s of [...this.shades].sort(byId)) {
+    for (const s of this.shadesById()) {
       if (Math.hypot(s.x - cx, s.gy + 1 - cy, s.z - cz) > TUNING.pulse_radius) continue;
       const dx = s.x - P.x, dz = s.z - P.z, d = Math.hypot(dx, dz);
       if (s.state === "drain") this.score += DRAIN_STUN_BONUS; // hitting a draining shade is worth +15 in total
@@ -463,7 +473,7 @@ export class Sim {
 
   private moveShades(): void {
     const P = this.player, sp = this.shadeSpeed() / TPS;
-    for (const s of [...this.shades].sort(byId)) {
+    for (const s of this.shadesById()) {
       if (s.state === "spawning") s.state = "wander";
       if (s.expel > 0) continue;
       if (s.state === "stunned") {
@@ -493,8 +503,8 @@ export class Sim {
         const forced = this.lanterns.find((x) => x.id === s.target);
         if (forced && (!forced.lit || forced.fuelU < TUNING.low_fuel_threshold * U)) { tgt = forced; td = hxz(s.x, s.z, forced.x, forced.z); }
         else {
-          for (const l of [...this.lanterns].sort(byId)) if (l.lit && l.fuelU < TUNING.low_fuel_threshold * U) { const d = hxz(s.x, s.z, l.x, l.z); if (d < td) { tgt = l; td = d; } }
-          if (!tgt) for (const l of [...this.lanterns].sort(byId)) if (!l.lit) { const d = hxz(s.x, s.z, l.x, l.z); if (d < td) { tgt = l; td = d; } }
+          for (const l of this.lanterns) if (l.lit && l.fuelU < TUNING.low_fuel_threshold * U) { const d = hxz(s.x, s.z, l.x, l.z); if (d < td) { tgt = l; td = d; } }
+          if (!tgt) for (const l of this.lanterns) if (!l.lit) { const d = hxz(s.x, s.z, l.x, l.z); if (d < td) { tgt = l; td = d; } }
         }
         if (tgt && tgt.lit && td <= DRAIN_RANGE) { s.state = "drain"; s.target = tgt.id; s.drainTicks = 0; }
         else if (tgt && td > 0.5) this.tryMoveShade(s, ((tgt.x - s.x) / td) * sp, ((tgt.z - s.z) / td) * sp);
@@ -535,7 +545,7 @@ export class Sim {
       this.emit(ev, "drifter_steal", { drifter_id: d.id, amount, carried: P.carried });
     }
     if (this.invulnActive) return;
-    for (const s of [...this.shades].sort(byId)) {
+    for (const s of this.shadesById()) {
       if ((s.state !== "wander" && s.state !== "chase") || s.expel > 0) continue;
       if (hxz(s.x, s.z, P.x, P.z) > TUNING.shade_hit_radius || Math.abs(P.y - s.gy) > 1.5) continue;
       P.flames--;

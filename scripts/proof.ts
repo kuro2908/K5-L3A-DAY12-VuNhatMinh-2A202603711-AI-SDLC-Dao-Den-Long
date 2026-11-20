@@ -1,10 +1,10 @@
 // Runs the REAL headless CLI on inline scenarios and checks the output against the requirement each one proves.
-// Usage: npm run proof [-- <phase-dir-name>]   (default: phase-3). Writes cases + raw output + REPORT.md to docs/proof/<phase>/.
+// Usage: npm run proof [-- <phase-dir-name>]   (default: phase-4). Writes cases + raw output + REPORT.md to docs/proof/<phase>/.
 import { execSync, spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 type Row = Record<string, any>;
-const PHASE = process.argv[2] ?? "phase-3";
+const PHASE = process.argv[2] ?? "phase-4";
 const OUT = `docs/proof/${PHASE}`;
 mkdirSync(`${OUT}/cases`, { recursive: true });
 
@@ -166,6 +166,28 @@ const check = (req: string, how: string, ok: boolean, detail: string) => results
 {
   const { rows } = cli({ name: "d8-pulse-drain", ticks: 6, scenario: { player: { pos: [25, 0, 0], carried: 3 }, lanterns: [L("L1", { pos: [30, 0, 0], lit: true, fuel: 20 })], shades: [{ id: "S1", pos: [29, 1, 0], state: "drain", target_lantern_id: "L1" }] }, inputs: press(0, "pulse") });
   check("[P3] Tỏa Sáng trúng Bóng Mực đang drain: stunned, tổng +15", "d8-pulse-drain", snap(rows, 1).shades[0].state === "stunned" && snap(rows, 1).score === 15, `state=${snap(rows, 1).shades[0].state}, score=${snap(rows, 1).score}`);
+}
+
+// ---- Phase 4 (Ticket-04) requirements
+{
+  const out = `${OUT}/soak.json`;
+  const r = spawnSync("npx", ["tsx", "scripts/soak.ts", "--seed", "7", "--nights", "10", "--out", out], { encoding: "utf8", shell: true });
+  const j = JSON.parse(readFileSync(out, "utf8"));
+  check("[P4] Soak: 10 Đêm liên tiếp trong một tiến trình, crashes = 0, mem_end ≤ 1.2 × mem_start", "scripts/soak.ts --seed 7 --nights 10", r.status === 0 && j.crashes === 0 && j.results.length === 10 && j.mem_end_mb <= 1.2 * j.mem_start_mb, `${JSON.stringify(j)}`);
+}
+{
+  const b = JSON.parse(readFileSync("bench.json", "utf8"));
+  const fields = ["contract_version", "avg_fps", "p1_low_fps", "frame_ms_p95", "frames", "load_ms", "peak_mem_mb", "vsync_off", "renderer", "os"].every((k) => k in b);
+  check("[P4] Benchmark (bench.json commit trong repo, đo trên máy tác giả): avg ≥ 60, p1-low ≥ 30, load ≤ 10 s", "npm run bench -- --seed 42 --duration 30 --out bench.json (cảnh chuẩn: 200 Bóng Mực + 100 đom đóm)", fields && b.contract_version === "1.3" && b.avg_fps >= 60 && b.p1_low_fps >= 30 && b.load_ms <= 10000 && b.vsync_off === true, `avg=${b.avg_fps}, p1_low=${b.p1_low_fps}, p95=${b.frame_ms_p95} ms, frames=${b.frames}, load=${b.load_ms} ms, >100ms=${b.frames_over_100ms}, GPU=${String(b.renderer).split("|")[0].trim()}`);
+}
+{
+  const dir = `${OUT}/cases`, file = `${dir}/leaderboard.json`, out = `${OUT}/leaderboard-export.json`;
+  const mk = (name: string, score: number, at: string) => ({ name, score, nights_won: 1, achieved_at: at, seed: 1 });
+  const entries = [mk("late_tie", 100, "2026-01-02T10:00:00+07:00"), mk("top_dog", 900, "2026-01-03T10:00:00+07:00"), mk("early_tie", 100, "2026-01-01T10:00:00+07:00")];
+  writeFileSync(file, JSON.stringify({ entries }));
+  const r = spawnSync("npx", ["tsx", "scripts/serve.ts", "--export-leaderboard", out], { encoding: "utf8", shell: true, env: { ...process.env, LEADERBOARD_FILE: file } });
+  const names = JSON.parse(readFileSync(out, "utf8")).entries.map((e: Row) => e.name);
+  check("[P4] <run_cmd> --export-leaderboard: {entries:[…]} đúng thứ tự (điểm giảm dần; hòa điểm ai đạt trước đứng trên)", "scripts/serve.ts --export-leaderboard", r.status === 0 && names.join() === "top_dog,early_tie,late_tie", `thứ tự xuất: ${names.join(" > ")}`);
 }
 
 const sha = execSync("git rev-parse --short HEAD").toString().trim();

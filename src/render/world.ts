@@ -23,19 +23,24 @@ function disc(cx: number, r: number, group: THREE.Group): void {
   group.add(top, rim, rock);
 }
 
+/** Trees as two InstancedMesh (trunks + tops): shared geometry and materials, 2 draw calls instead of ~100. */
 function decor(group: THREE.Group, cx: number, r: number, count: number, avoid: [number, number][]): void {
+  const spots: { x: number; z: number; s: number }[] = [];
   for (let i = 0; i < count; i++) {
     const a = rnd() * Math.PI * 2, d = 6 + Math.sqrt(rnd()) * (r - 9), x = cx + Math.cos(a) * d, z = Math.sin(a) * d;
     if (avoid.some(([ax, az]) => Math.hypot(ax - x, az - z) < 5)) continue;
-    const s = 0.8 + rnd() * 1.1;
-    const tree = new THREE.Group();
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * s, 0.3 * s, 1.6 * s, 6), mat(PAL.wood));
-    trunk.position.y = 0.8 * s;
-    const top = new THREE.Mesh(new THREE.ConeGeometry(1.2 * s, 3 * s, 7), mat(0x1f4a3d, { flatShading: true }));
-    top.position.y = 2.8 * s;
-    tree.add(trunk, top); tree.position.set(x, 0, z);
-    group.add(tree);
+    spots.push({ x, z, s: 0.8 + rnd() * 1.1 });
   }
+  const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.2, 0.3, 1.6, 6), mat(PAL.wood), Math.max(1, spots.length));
+  const tops = new THREE.InstancedMesh(new THREE.ConeGeometry(1.2, 3, 7), mat(0x1f4a3d, { flatShading: true }), Math.max(1, spots.length));
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3();
+  spots.forEach((t, i) => {
+    sc.set(t.s, t.s, t.s);
+    m.compose(p.set(t.x, 0.8 * t.s, t.z), q, sc); trunks.setMatrixAt(i, m);
+    m.compose(p.set(t.x, 2.8 * t.s, t.z), q, sc); tops.setMatrixAt(i, m);
+  });
+  trunks.count = tops.count = spots.length;
+  group.add(trunks, tops);
 }
 
 export function buildWorld(night: 1 | 2 | 3): THREE.Group {
@@ -47,10 +52,11 @@ export function buildWorld(night: 1 | 2 | 3): THREE.Group {
   const sea = new THREE.Mesh(new THREE.CircleGeometry(700, 48), new THREE.MeshBasicMaterial({ color: PAL.sea }));
   sea.rotation.x = -Math.PI / 2; sea.position.y = -12;
   g.add(sea);
+  const puffGeo = new THREE.SphereGeometry(1, 10, 8), puffMat = new THREE.MeshBasicMaterial({ color: 0x1d4a60 }); // shared by all clouds
   for (let i = 0; i < 36; i++) {
-    const a = rnd() * Math.PI * 2, r = 60 + rnd() * 160;
-    const puff = new THREE.Mesh(new THREE.SphereGeometry(8 + rnd() * 14, 10, 8), new THREE.MeshBasicMaterial({ color: 0x1d4a60 }));
-    puff.position.set(Math.cos(a) * r + (night === 2 ? 35 : 0), -10.5 + rnd() * 2, Math.sin(a) * r); puff.scale.y = 0.3;
+    const a = rnd() * Math.PI * 2, r = 60 + rnd() * 160, size = 8 + rnd() * 14;
+    const puff = new THREE.Mesh(puffGeo, puffMat);
+    puff.position.set(Math.cos(a) * r + (night === 2 ? 35 : 0), -10.5 + rnd() * 2, Math.sin(a) * r); puff.scale.set(size, size * 0.3, size);
     g.add(puff);
   }
 

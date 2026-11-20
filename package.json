@@ -8,7 +8,10 @@
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
     "headless": "tsx src/headless/cli.ts",
-    "proof": "tsx scripts/proof.ts"
+    "proof": "tsx scripts/proof.ts",
+    "start": "tsx scripts/serve.ts",
+    "bench": "tsx scripts/bench.ts",
+    "soak": "tsx scripts/soak.ts"
   },
   "dependencies": {
     "three": "0.170.0"
@@ -16,6 +19,7 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/three": "0.170.0",
+    "puppeteer-core": "^23.11.1",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vite": "^5.4.0",
