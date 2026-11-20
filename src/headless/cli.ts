@@ -36,13 +36,13 @@ const seed = intArg(args, "seed");
 const night = intArg(args, "night", 1);
 const ticks = intArg(args, "ticks");
 const every = intArg(args, "snapshot-every", 10);
-if (night !== 1) usage("only --night 1 exists in this build");
+if (![1, 2, 3].includes(night)) usage("--night must be 1, 2 or 3");
 if (ticks < 0 || every < 1) usage("--ticks must be >= 0 and --snapshot-every >= 1");
 if (!args.out) usage("missing --out");
 
 try {
   const { lines } = runHeadless({
-    seed, ticks, snapshotEvery: every,
+    seed, ticks, night: night as 1 | 2 | 3, snapshotEvery: every,
     scenario: args.scenario ? readJson(args.scenario) : undefined,
     inputs: args.inputs ? readJson(args.inputs) : undefined,
   });
